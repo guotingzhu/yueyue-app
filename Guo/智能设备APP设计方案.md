@@ -24,8 +24,13 @@
 ```
 app                         组装层，DI 注册，路由组合
 feature-xxx                 业务功能模块（纵向切片）
+  presentation              UI 层（Fragment/Activity/Composable + ViewModel）
+  domain                    业务逻辑层（UseCase + Repository 接口）
+  data                      数据层（Repository 实现 + Room + 网络）
 lib-xxx                     基础设施层（无业务含义）
 ```
+
+**每个 feature 内部仍遵循 Clean Architecture 三层结构，只是以纵向切片方式组织，而非全局横向分层。**
 
 ---
 
@@ -35,22 +40,40 @@ lib-xxx                     基础设施层（无业务含义）
 
 ```
 feature-order/
-  feature-order-api/        对外暴露的契约（接口、实体、路由）
+  feature-order-api/            对外暴露的契约（接口、实体、路由）
     build.gradle.kts
-    OrderService.kt         接口
-    OrderEntity.kt          Domain 实体（对外）
-    OrderRoute.kt           路由定义
+    OrderService.kt             接口
+    OrderEntity.kt              Domain 实体（对外）
+    OrderRoute.kt               路由定义
 
-  feature-order-impl/       业务实现（UI、ViewModel、UseCase、Repository）
+  feature-order-impl/           Presentation 层 + Domain 层
     build.gradle.kts
-    OrderViewModel.kt
-    OrderRepositoryImpl.kt
+    presentation/
+      OrderListFragment.kt      UI（Fragment / Composable）
+      OrderDetailFragment.kt
+      OrderViewModel.kt         ViewModel，持有 UseCase
+    domain/
+      GetOrderListUseCase.kt    UseCase，编排业务逻辑
+      OrderRepository.kt        Repository 接口（domain 层定义）
 
-  data-order/               数据层，归属于本 feature
+  data-order/                   Data 层，归属于本 feature
     build.gradle.kts
-    OrderTable.kt           (internal) Room Entity，跨模块不可见
-    OrderDao.kt             (internal)
+    OrderRepositoryImpl.kt      Repository 实现（依赖 Dao + 网络）
+    OrderTable.kt               (internal) Room Entity，跨模块不可见
+    OrderDao.kt                 (internal)
+    OrderApi.kt                 网络请求接口
 ```
+
+**各层职责说明：**
+
+| 层 | 所在模块 | 职责 |
+|----|---------|------|
+| Presentation | `feature-xxx-impl/presentation` | UI 渲染、用户交互、状态展示，持有 ViewModel |
+| ViewModel | `feature-xxx-impl/presentation` | 持有 UseCase，将业务状态转换为 UI State，生命周期感知 |
+| UseCase | `feature-xxx-impl/domain` | 单一业务用例，编排多个 Repository，无 Android 依赖 |
+| Repository 接口 | `feature-xxx-impl/domain` | 定义数据访问契约，domain 层不感知数据来源 |
+| Repository 实现 | `data-xxx` | 实现 Repository 接口，协调本地DB与网络数据 |
+| Room Entity/Dao | `data-xxx` | 数据库表结构与操作，`internal` 修饰，不对外暴露 |
 
 **关键原则：**
 - 每个子目录有独立的 `build.gradle.kts`，是独立编译单元
